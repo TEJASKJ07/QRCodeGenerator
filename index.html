@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Custom QR Code Generator</title>
+  <!-- QRious Library (Canvas Native) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: #f4f6f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+    .card { background: #ffffff; padding: 28px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%; max-width: 440px; }
+    h2 { margin-top: 0; color: #1a1a1a; text-align: center; margin-bottom: 20px; }
+    .group { margin-bottom: 16px; }
+    label { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; color: #444; }
+    input[type="text"], input[type="file"] { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+    .colors { display: flex; gap: 12px; }
+    .color-field { flex: 1; }
+    input[type="color"] { width: 100%; height: 40px; border: 1px solid #ccc; border-radius: 6px; cursor: pointer; background: white; padding: 2px; }
+    .hex-input { margin-top: 6px; text-transform: uppercase; font-family: monospace; }
+    .preview-area { display: flex; justify-content: center; align-items: center; margin: 20px 0; min-height: 220px; background: #fafafa; border: 1px dashed #ddd; border-radius: 8px; padding: 10px; }
+    #canvas { border-radius: 4px; max-width: 100%; height: auto; }
+    button { width: 100%; padding: 12px; background-color: #0066ff; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    button:hover { background-color: #0052cc; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>QR Code Generator</h2>
+
+  <div class="group">
+    <label for="url">Website URL</label>
+    <input type="text" id="url" placeholder="https://example.com" value="https://example.com">
+  </div>
+
+  <div class="group colors">
+    <div class="color-field">
+      <label for="dotColor">QR Dots Color</label>
+      <input type="color" id="dotColor" value="#000000">
+      <input type="text" id="dotHex" class="hex-input" value="#000000" placeholder="#000000" maxlength="7">
+    </div>
+    <div class="color-field">
+      <label for="bgColor">Background Color</label>
+      <input type="color" id="bgColor" value="#ffffff">
+      <input type="text" id="bgHex" class="hex-input" value="#FFFFFF" placeholder="#FFFFFF" maxlength="7">
+    </div>
+  </div>
+
+  <div class="group">
+    <label for="logo">Center Logo (Optional PNG)</label>
+    <input type="file" id="logo" accept="image/png, image/jpeg">
+  </div>
+
+  <div class="preview-area">
+    <canvas id="canvas" width="260" height="260"></canvas>
+  </div>
+
+  <button id="downloadBtn">Download PNG</button>
+</div>
+
+<script>
+  const urlInput = document.getElementById('url');
+  const dotColorInput = document.getElementById('dotColor');
+  const dotHexInput = document.getElementById('dotHex');
+  const bgColorInput = document.getElementById('bgColor');
+  const bgHexInput = document.getElementById('bgHex');
+  const logoInput = document.getElementById('logo');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const downloadBtn = document.getElementById('downloadBtn');
+
+  let logoImage = null;
+
+  const qr = new QRious({
+    element: canvas,
+    size: 260,
+    level: 'H'
+  });
+
+  function updateQR() {
+    let url = urlInput.value.trim() || 'https://example.com';
+    if (!/^https?:\/\//i.test(url)) {
+      url = 'https://' + url;
+    }
+
+    qr.set({
+      value: url,
+      foreground: dotColorInput.value,
+      background: bgColorInput.value
+    });
+
+    if (logoImage) {
+      const logoSize = canvas.width * 0.28;
+      const x = (canvas.width - logoSize) / 2;
+      const y = (canvas.height - logoSize) / 2;
+
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.drawImage(logoImage, x, y, logoSize, logoSize);
+    }
+  }
+
+  function isValidHex(hex) {
+    return /^#([0-9A-F]{3}){1,2}$/i.test(hex);
+  }
+
+  // Sync color picker changes to text input
+  dotColorInput.addEventListener('input', () => {
+    dotHexInput.value = dotColorInput.value.toUpperCase();
+    updateQR();
+  });
+
+  bgColorInput.addEventListener('input', () => {
+    bgHexInput.value = bgColorInput.value.toUpperCase();
+    updateQR();
+  });
+
+  // Sync manual hex text typing to color picker & canvas
+  dotHexInput.addEventListener('input', () => {
+    let hex = dotHexInput.value.trim();
+    if (hex && !hex.startsWith('#')) hex = '#' + hex;
+    
+    if (isValidHex(hex)) {
+      dotColorInput.value = hex;
+      updateQR();
+    }
+  });
+
+  bgHexInput.addEventListener('input', () => {
+    let hex = bgHexInput.value.trim();
+    if (hex && !hex.startsWith('#')) hex = '#' + hex;
+
+    if (isValidHex(hex)) {
+      bgColorInput.value = hex;
+      updateQR();
+    }
+  });
+
+  logoInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        logoImage = new Image();
+        logoImage.onload = updateQR;
+        logoImage.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      logoImage = null;
+      updateQR();
+    }
+  });
+
+  downloadBtn.addEventListener('click', () => {
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = 'qrcode.png';
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setTimeout(() => {
+        URL.revokeObjectURL(blobUrl);
+      }, 1000);
+    }, 'image/png');
+  });
+
+  urlInput.addEventListener('input', updateQR);
+
+  updateQR();
+</script>
+
+</body>
+</html>
